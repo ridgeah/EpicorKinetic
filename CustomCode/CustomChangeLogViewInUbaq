@@ -1,0 +1,74 @@
+// Clear existing results before rebuilding
+result.Results.Clear();
+
+string IdentifierFilter = "OrderHed";
+
+// Compiled regexes
+Regex TimeRegex = new Regex(@"\d{1,2}:\d{2}:\d{2}", RegexOptions.Compiled);
+Regex LineSplitRegex = new Regex(@"\n{2,}", RegexOptions.Compiled);
+
+// Get Key1 parameter from BAQ
+var key1Para = executionParams.ExecutionParameter.Where(r => r.ParameterID == "Key1" && !string.IsNullOrEmpty(r.ParameterValue)).Select(r => r.ParameterValue).FirstOrDefault();
+
+if (key1Para == null) return;
+
+// Get all user IDs once
+var userIds = Db.UserFile.Select(r => r.DcdUserID).ToArray();
+
+// Get ChangeLog entries for this record, in chronological order
+var chgLogList = Db.ChgLog.Where(r => r.Company == callContextClient.CurrentCompany && r.Identifier == IdentifierFilter && r.Key1 == key1Para).OrderBy(r => r.DateStampedOn).ThenBy(r => r.SysRevID).ToList();
+
+// Flatten every change-log row into its individual lines and resolve each line's actual timestamp + user, without building output rows
+
+var parsedLines = chgLogList.SelectMany(chgLogDataRow => LineSplitRegex.Split(chgLogDataRow.LogText)
+.Select(line =>
+{
+    // Extract the timestamp embedded in the line text; fall back to the ChgLog row's own DateStampedOn (date-only) if no time is present, instead of throwing on TimeSpan.Parse("").
+    var timeMatch = TimeRegex.Match(line);
+    DateTime entryDateTime = timeMatch.Success ? chgLogDataRow.DateStampedOn.Date.Add(TimeSpan.Parse(timeMatch.Value)) : chgLogDataRow.DateStampedOn;
+
+    string userName = userIds.FirstOrDefault(r => !string.IsNullOrEmpty(r) && Regex.IsMatch(line, Regex.Escape(r)));
+
+    return new
+    {
+        ChgLogRow = chgLogDataRow,
+        Line = line,
+        EntryDateTime = entryDateTime,
+        UserName = userName
+    };
+    
+})).OrderBy(p => p.EntryDateTime).ThenBy(p => p.ChgLogRow.ChgLogSeq).ToList();
+
+// Build the output rows in chronological order.
+var resultsTemp = new List<ResultsUbaqRow>();
+int rowNum = 1;
+
+foreach (var parsed in parsedLines)
+{
+    var chgLogDataRow = parsed.ChgLogRow;
+    var line = parsed.Line;
+    var rowGuid = Guid.NewGuid();
+
+    resultsTemp.Add(new ResultsUbaqRow
+    {
+        Calculated_Company = chgLogDataRow.Company,
+        Calculated_Identifier = chgLogDataRow.Identifier,
+        Calculated_SchemaName = chgLogDataRow.SchemaName,
+        Calculated_TableName = chgLogDataRow.TableName,
+        Calculated_Key1 = chgLogDataRow.Key1,
+        Calculated_Key2 = chgLogDataRow.Key2,
+        Calculated_Key3 = chgLogDataRow.Key3,
+        Calculated_DateStampedOn = parsed.EntryDateTime,
+        Calculated_LogText = line.Replace("New Record",$"\n New {chgLogDataRow.TableName} Record - {chgLogDataRow.Key2}"),
+        Calculated_LogNum = rowNum,
+        Calculated_ChgLogMethod = chgLogDataRow.ChgLogMethod,
+        Calculated_ChgLogSeq = chgLogDataRow.ChgLogSeq,
+        Calculated_UserID = parsed.UserName,
+        SysRowID = rowGuid,
+        RowIdent = rowGuid.ToString()
+    });
+
+    rowNum++;
+}
+
+result.Results.AddRange(resultsTemp);
