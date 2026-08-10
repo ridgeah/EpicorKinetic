@@ -1,0 +1,19 @@
+foreach (var row in list)
+{
+	  // Unique rowID
+	  Guid rowGUID = Guid.NewGuid();
+        
+    // Add BAQ result row
+    resultsTemp.Add(new ResultsUbaqRow
+    {
+        // Populate row data 
+        Col1 = "Column1",
+    
+        // Add Rows here linked to BAQ
+        SysRowID = rowGUID,
+        RowIdent = rowGUID.ToString()       
+    });
+}
+
+// Add the results
+result.Results.AddRange(resultsTemp); 
