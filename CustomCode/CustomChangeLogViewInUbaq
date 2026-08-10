@@ -1,3 +1,6 @@
+//usings that require adding
+using System.Text.RegularExpressions;
+
 // Clear existing results before rebuilding
 result.Results.Clear();
 
