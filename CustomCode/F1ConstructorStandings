@@ -1,0 +1,48 @@
+// Assemblies
+RestSharp
+Newtonsoft.Json
+
+// usings
+using RestSharp; 
+using Newtonsoft.Json;
+
+try
+{
+    RestClient client = new RestClient("https://f1api.dev/api/current/constructors-championship");    
+    RestRequest request = new RestRequest(Method.GET);
+    IRestResponse response = client.Execute(request);
+    
+    if (response.IsSuccessful)
+    {
+        dynamic returnObj = JsonConvert.DeserializeObject(response.Content);
+        dynamic standings = returnObj.constructors_championship;
+    
+        List<ResultsUbaqRow> resultsTemp = new List<ResultsUbaqRow>(); 
+    
+        foreach (var standing in standings)
+        {
+               //Add Baq Row 
+               ResultsUbaqRow newRow = new ResultsUbaqRow();
+               newRow.Calculated_postition = standing.position;
+               newRow.Calculated_teamName = standing.team.teamName;
+               newRow.Calculated_constructorsChampionships = (int?)standing.team.constructorsChampionships ?? 0;
+               newRow.Calculated_points = (int)standing.points;
+               newRow.Calculated_country = standing.team.country;
+               newRow.Calculated_firstAppareance = standing.team.firstAppareance;
+               newRow.Calculated_driversChampionships = (int?)standing.team.driversChampionships ?? 0;
+               newRow.Calculated_champTitle = returnObj.championshipId;
+               newRow.Calculated_champTitle = $"{newRow.Calculated_champTitle.Replace("_"," ").ToUpper()} - Constructors Championship";
+               newRow.SysRowID = Guid.NewGuid();    
+               newRow.RowIdent = standing.position.ToString();
+               resultsTemp.Add(newRow);
+        }
+
+        //Clear existing and then add range
+        result.Results.Clear();
+        result.Results.AddRange(resultsTemp); 
+    }
+}
+catch (Exception ex)
+{
+    throw new BLException(ex.Message);
+}
