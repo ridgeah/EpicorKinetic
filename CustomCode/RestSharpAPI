@@ -1,0 +1,58 @@
+// ASSEMBLIES REQUIRED
+- RestSharp;
+- Newtonsoft.Json;
+
+// USINGS REQUIRED
+using RestSharp;
+using Newtonsoft.Json;
+
+try
+{
+    RestClient client = new RestClient("ENDPOINT URL");
+    RestRequest request = new RestRequest(Method.POST);
+    request.AddHeader("x-api-key", "API-KEY");
+    request.AddHeader("Content-Type", "application/json");
+    request.AddJsonBody(new
+    {
+        string1 = "123456"
+    });
+    
+    // Get client to execute request 
+    IRestResponse response = client.Execute(request);
+    
+    if (response.IsSuccessful)
+    {
+        dynamic r = JsonConvert.DeserializeObject(response.Content); 
+        // ... Access rows through dynamic
+    }
+
+    // Error Handling  
+    else
+    {
+        string status = response.StatusCode != 0
+        ? $"{(int)response.StatusCode} ({response.StatusCode})"
+        : "No HTTP response";
+
+    string errorMessage =
+        response.ErrorException?.Message
+        ?? response.ErrorMessage
+        ?? response.StatusDescription
+        ?? "No error message was supplied.";
+
+    string responseBody = string.IsNullOrWhiteSpace(response.Content)
+        ? "No response body."
+        : response.Content;
+
+    output =
+        $"API request failed. " +
+        $"HTTP status: {status}. " +
+        $"Response status: {response.ResponseStatus}. " +
+        $"Error: {errorMessage} " +
+        $"Server response: {responseBody}";
+    }
+    
+}
+catch (Exception ex)
+{
+    output = ex.Message;
+}
